@@ -11,9 +11,7 @@ jobs:
   build-desktop:
     name: Build Desktop Module
     runs-on: ubuntu-latest
-    env:
-      # Desktop-specific environment vars (optional, can be set in repo secrets)
-      KOTLINEW_VERSION: "1.9.23"
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -29,48 +27,26 @@ jobs:
       - name: Grant Gradle execute permission
         run: chmod +x gradlew
 
-      - name: Initialize Gradle properties
-        run: |
-          echo "org.gradle.dsl=100" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx2g" >> gradle.properties
-
-      - name: Build Desktop Module (compileJvm)
+      - name: Build Desktop Module
         env:
-          # These match the Android module's secret requirements
           LOSSLESS_BACKEND_URL: ${{ secrets.LOSSLESS_BACKEND_URL }}
           LOSSLESS_API_KEY: ${{ secrets.LOSSLESS_API_KEY }}
           LYRICS_API_KEY: ${{ secrets.LYRICS_API_KEY }}
         run: |
           ./gradlew :desktop:compileKotlinJvm --stacktrace
-          echo "::set-output name=status::success"
-
-      - name: Run Desktop Module (if display available)
-        if: runner.os == 'Linux' && env.DISPLAY !== ''
-        run: |
-          # Attempt to run the desktop application
-          # This requires a display server, which GitHub Actions runners may not have
-          # But we'll try if Xvfb is available
-          Xvfb :99 -screen 0 1024x768x24 &
-          export DISPLAY=:99
-          ./gradlew :desktop:run &
-          sleep 5
-          echo "Desktop execution attempted"
-
-      - name: Upload Desktop Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: LastWave-Desktop-${{ github.sha }}
-          path: |
-            desktop/build/
-            desktop/src/
-          if-no-files-found: error
 
       - name: Verify Desktop Compilation
         run: |
-          # Verify the desktop module compiled successfully
           if [ -d "desktop/build/classes/jvm/main/com/lastwave/desktop" ]; then
             echo "✅ Desktop module compiled successfully"
           else
             echo "❌ Desktop module compilation failed"
             exit 1
           fi
+
+      - name: Upload Desktop Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LastWave-Desktop-${{ github.sha }}
+          path: desktop/build/classes/jvm/main/com/lastwave/desktop/
+          if-no-files-found: error
