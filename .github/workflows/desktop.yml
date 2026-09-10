@@ -33,7 +33,7 @@ jobs:
           LOSSLESS_API_KEY: ${{ secrets.LOSSLESS_API_KEY }}
           LYRICS_API_KEY: ${{ secrets.LYRICS_API_KEY }}
         run: |
-          ./gradlew :desktop:compileKotlinJvm --stacktrace
+          ./gradlew :desktop:compileKotlin --stacktrace
 
       - name: Verify Desktop Compilation
         run: |
