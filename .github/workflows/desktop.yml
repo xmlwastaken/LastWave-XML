@@ -1,4 +1,4 @@
-name: Verify LastWave Desktop
+name: Build LastWave Desktop JVM
 
 on:
   push:
@@ -8,47 +8,59 @@ on:
   workflow_dispatch:
 
 jobs:
-  verify-desktop:
-    name: Verify Desktop Module
+  build-jvm:
+    name: Compile Desktop to JVM Classes
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Verify desktop module exists
-        run: |
-          echo "Desktop module path: $(pwd)/desktop"
-          ls -la desktop/
-          echo "---"
-          echo "Key files:"
-          ls desktop/src/main/kotlin/com.lastwave.desktop/ 2>/dev/null || echo "Source dir not found"
-          echo "---"
-          echo "Build dir:"
-          ls desktop/build/ 2>/dev/null || echo "Build dir not found"
-
-      - name: Setup JDK 21 (optional, for future compilation)
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Upload Desktop Module Structure
+      - name: Grant Gradle execute permission
+        run: chmod +x gradlew
+
+      - name: Compile Desktop Module (Kotlin JVM)
+        env:
+          LOSSLESS_BACKEND_URL: ${{ secrets.LOSSLESS_BACKEND_URL }}
+          LOSSLESS_API_KEY: ${{ secrets.LOSSLESS_API_KEY }}
+          LYRICS_API_KEY: ${{ secrets.LYRICS_API_KEY }}
+        run: |
+          ./gradlew :desktop:compileKotlin --stacktrace -Dorg.gradle.jvmargs=-Xmx2g
+
+      - name: Verify Compilation
+        run: |
+          if [ -d "desktop/build/classes/jvm/main/com/lastwave/desktop" ]; then
+            echo "✅ JVM compilation successful"
+            echo "Compiled classes found:"
+            find desktop/build/classes/jvm/main/com/lastwave/desktop -name "*.class" | wc -l | xargs echo "  .class files:"
+            find desktop/build/classes/jvm/main/com/lastwave/desktop -name "*.class" | head -10 | sed 's|desktop/build/classes/jvm/main/|  |' | xargs -I{} echo "    {}"
+          else
+            echo "❌ JVM compilation failed — class directory not found"
+            exit 1
+          fi
+
+      - name: Upload JVM Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LastWave-Desktop-Structure-${{ github.sha }}
+          name: LastWave-Desktop-JVM-${{ github.sha }}
           path: |
-            desktop/
-            .github/workflows/desktop.yml
+            desktop/build/classes/jvm/main/com/lastwave/desktop/
+            desktop/build/resources/main/
           if-no-files-found: error
 
       - name: Output Summary
         run: |
-          echo "=== Desktop Module Verification ==="
+          echo "=== LastWave Desktop JVM Build ==="
           echo "Branch: arena/01a08bf5-lastwave-xml"
-          echo "Desktop module contains:"
-          find desktop -name "*.kt" -type f | wc -l | xargs echo "  Kotlin source files:"
-          find desktop -name "*.kt" -type f | head -10 | xargs -I{} echo "  - {}"
-          echo " "
-          echo "Ready for: ./gradlew :desktop:compileKotlinJvm (run locally or via custom CI)"
+          echo "Compiled Kotlin classes for JVM"
+          echo "Artifact contains: compiled .class files + resources"
+          echo "To run: java -cp desktop/build/classes/jvm/main com.lastwave.desktop.DesktopEntryPoint"
+          echo "Or open in IntelliJ IDEA with Compose for Desktop plugin"
